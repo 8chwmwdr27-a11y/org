@@ -1,3 +1,6 @@
+// ===== HELPERS =====
+const $ = id => document.getElementById(id);
+
 // ===== DATABASE =====
 let db = JSON.parse(localStorage.getItem("NUX_DB")) || {
   users: {
@@ -13,11 +16,7 @@ let db = JSON.parse(localStorage.getItem("NUX_DB")) || {
   economy: {
     inflation: 1,
     interest: 1.1,
-    market: {
-      gold: 100,
-      tech: 150,
-      energy: 80
-    }
+    market: { gold: 100, tech: 150, energy: 80 }
   }
 };
 
@@ -26,11 +25,16 @@ let adminMode = false;
 
 // ===== LOGIN =====
 function login() {
-  if (db.users[user.value] && db.users[user.value].pass === pass.value) {
-    current = user.value;
-    login.style.display = "none";
-    game.classList.remove("hidden");
+  let u = $("user").value;
+  let p = $("pass").value;
+
+  if (db.users[u] && db.users[u].pass === p) {
+    current = u;
+    $("login").style.display = "none";
+    $("game").classList.remove("hidden");
     init();
+  } else {
+    alert("שגיאה");
   }
 }
 
@@ -49,8 +53,8 @@ function me() {
 function render() {
   let u = me();
 
-  profile.innerHTML = `
-  ${current} | LVL ${u.level} | XP ${u.xp} | NUX ${Math.floor(u.nux)}
+  $("profile").innerHTML = `
+    ${current} | LVL ${u.level} | XP ${u.xp} | NUX ${Math.floor(u.nux)}
   `;
 
   renderBank();
@@ -58,11 +62,11 @@ function render() {
   renderMissions();
 }
 
-// ===== XP SYSTEM =====
+// ===== XP =====
 function addXP(x) {
   let u = me();
   u.xp += x;
-  u.nux += x * db.economy.inflation;
+  u.nux += x;
 
   while (u.xp >= u.level * 150) {
     u.xp -= u.level * 150;
@@ -75,16 +79,15 @@ function addXP(x) {
 
 // ===== MISSIONS =====
 function renderMissions() {
-  missions.innerHTML = "<h3>משימות</h3>";
-
-  let lvl = me().level;
+  let el = $("missions");
+  el.innerHTML = "<h3>משימות</h3>";
 
   for (let i = 0; i < 3; i++) {
-    let reward = Math.floor(Math.random() * 50) + lvl * 10;
+    let reward = Math.floor(Math.random() * 50) + 20;
 
-    missions.innerHTML += `
-    משימה רמה ${lvl}
-    <button onclick="addXP(${reward})">בצע (+${reward})</button><br>
+    el.innerHTML += `
+      משימה
+      <button onclick="addXP(${reward})">בצע (+${reward})</button><br>
     `;
   }
 }
@@ -93,10 +96,9 @@ function renderMissions() {
 function renderBank() {
   let u = me();
 
-  bank.innerHTML = `
+  $("bank").innerHTML = `
     <h3>בנק</h3>
     יתרה: ${Math.floor(u.nux)}<br>
-    חובות: ${u.loans.length}<br>
     <button onclick="loan()">הלוואה</button>
   `;
 }
@@ -104,12 +106,10 @@ function renderBank() {
 function loan() {
   let u = me();
 
-  let amount = 300 * db.economy.inflation;
-  let interest = db.economy.interest;
+  let amount = 300;
 
   u.loans.push({
-    amount,
-    repay: amount * interest,
+    repay: amount * 1.2,
     due: Date.now() + 60000
   });
 
@@ -122,39 +122,39 @@ function loan() {
 
 // ===== MARKET =====
 function renderMarket() {
+  let el = $("world");
   let m = db.economy.market;
-  let u = me();
 
-  world.innerHTML = "<h3>שוק</h3>";
+  el.innerHTML = "<h3>שוק</h3>";
 
   for (let key in m) {
-    world.innerHTML += `
-    ${key}: ${m[key].toFixed(1)}
-    <button onclick="buy('${key}')">קנה</button>
-    <button onclick="sell('${key}')">מכור</button><br>
+    el.innerHTML += `
+      ${key}: ${m[key].toFixed(1)}
+      <button onclick="buy('${key}')">קנה</button>
+      <button onclick="sell('${key}')">מכור</button><br>
     `;
   }
 }
 
-function buy(asset) {
-  let price = db.economy.market[asset];
+function buy(a) {
   let u = me();
+  let price = db.economy.market[a];
 
   if (u.nux >= price) {
     u.nux -= price;
-    u.portfolio[asset] = (u.portfolio[asset] || 0) + 1;
+    u.portfolio[a] = (u.portfolio[a] || 0) + 1;
   }
 
   save();
   render();
 }
 
-function sell(asset) {
+function sell(a) {
   let u = me();
 
-  if (u.portfolio[asset] > 0) {
-    u.portfolio[asset]--;
-    u.nux += db.economy.market[asset];
+  if (u.portfolio[a] > 0) {
+    u.portfolio[a]--;
+    u.nux += db.economy.market[a];
   }
 
   save();
@@ -165,17 +165,12 @@ function sell(asset) {
 function worldLoop() {
   setInterval(() => {
 
-    // תנודות שוק
-    for (let key in db.economy.market) {
-      db.economy.market[key] += (Math.random() - 0.5) * 10;
-      if (db.economy.market[key] < 10) db.economy.market[key] = 10;
+    for (let k in db.economy.market) {
+      db.economy.market[k] += (Math.random() - 0.5) * 5;
     }
 
-    // אינפלציה
-    db.economy.inflation += (Math.random() - 0.5) * 0.1;
-
-    // בדיקת חובות
     let u = me();
+
     u.loans = u.loans.filter(l => {
       if (Date.now() > l.due) {
         u.nux -= l.repay;
@@ -184,20 +179,13 @@ function worldLoop() {
       return true;
     });
 
-    // קריסה
-    if (u.nux < -500) {
-      alert("פשיטת רגל!");
-      u.nux = 100;
-      u.level = 1;
-    }
-
     save();
     render();
 
   }, 8000);
 }
 
-// ===== CHEATS 😈 =====
+// ===== CHEATS =====
 document.addEventListener("keydown", e => {
   if (e.key === "`") {
     let cmd = prompt("CMD:");
@@ -207,13 +195,6 @@ document.addEventListener("keydown", e => {
     if (adminMode) {
       if (cmd === "money") me().nux += 50000;
       if (cmd === "boost") me().level += 5;
-      if (cmd === "inflate") db.economy.inflation += 2;
-      if (cmd === "market up") {
-        for (let k in db.economy.market) db.economy.market[k] *= 1.5;
-      }
-      if (cmd === "market crash") {
-        for (let k in db.economy.market) db.economy.market[k] *= 0.5;
-      }
     }
 
     save();
