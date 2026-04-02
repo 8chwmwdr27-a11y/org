@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<title>NUX Control System</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="emergency"></div>
+
+<div id="login">
+  <h2>כניסה</h2>
+  <input id="user" placeholder="שם משתמש">
+  <input id="pass" type="password" placeholder="סיסמה">
+  <button onclick="login()">כניסה</button>
+</div>
+
+<div id="game" class="hidden">
+
+  <h1>מערכת שליטה ארגונית</h1>
+  <div id="profile"></div>
+
+  <div class="menu">
+    <button onclick="show('dashboard')">דשבורד</button>
+    <button onclick="show('bank')">בנק</button>
+    <button onclick="show('missions')">משימות</button>
+    <button onclick="show('world')">עולם</button>
+  </div>
+
+  <div id="dashboard" class="tab"></div>
+  <div id="bank" class="tab hidden"></div>
+  <div id="missions" class="tab hidden"></div>
+  <div id="world" class="tab hidden"></div>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

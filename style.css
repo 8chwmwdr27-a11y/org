@@ -1,0 +1,38 @@
+body {
+  background: #0d1117;
+  color: white;
+  font-family: Arial;
+  text-align: center;
+}
+
+input, button {
+  padding: 10px;
+  margin: 5px;
+}
+
+button {
+  background: #21262d;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #30363d;
+}
+
+.hidden {
+  display: none;
+}
+
+.tab {
+  margin-top: 20px;
+  padding: 10px;
+  border: 1px solid #333;
+}
+
+#emergency {
+  background: red;
+  padding: 15px;
+  display: none;
+}
