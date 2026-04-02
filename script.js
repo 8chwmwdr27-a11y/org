@@ -7,14 +7,18 @@ let db = JSON.parse(localStorage.getItem("NUX_DB")) || {
       xp: 0,
       nux: 1000,
       loans: [],
-      investments: []
+      portfolio: {}
     }
   },
   economy: {
     inflation: 1,
-    interest: 1.1
-  },
-  logs: []
+    interest: 1.1,
+    market: {
+      gold: 100,
+      tech: 150,
+      energy: 80
+    }
+  }
 };
 
 let current = null;
@@ -22,21 +26,18 @@ let adminMode = false;
 
 // ===== LOGIN =====
 function login() {
-  let u = user.value;
-  let p = pass.value;
-
-  if (db.users[u] && db.users[u].pass === p) {
-    current = u;
+  if (db.users[user.value] && db.users[user.value].pass === pass.value) {
+    current = user.value;
     login.style.display = "none";
     game.classList.remove("hidden");
     init();
-  } else alert("שגיאה");
+  }
 }
 
 // ===== INIT =====
 function init() {
   render();
-  worldEngine();
+  worldLoop();
 }
 
 // ===== USER =====
@@ -49,23 +50,22 @@ function render() {
   let u = me();
 
   profile.innerHTML = `
-    ${current} | LVL ${u.level} | XP ${u.xp} | NUX ${Math.floor(u.nux)}
-    <br> אינפלציה: ${db.economy.inflation.toFixed(2)}
+  ${current} | LVL ${u.level} | XP ${u.xp} | NUX ${Math.floor(u.nux)}
   `;
 
   renderBank();
+  renderMarket();
   renderMissions();
-  renderWorld();
 }
 
-// ===== LEVEL =====
+// ===== XP SYSTEM =====
 function addXP(x) {
   let u = me();
   u.xp += x;
-  u.nux += x * 0.5;
+  u.nux += x * db.economy.inflation;
 
-  while (u.xp >= u.level * 100) {
-    u.xp -= u.level * 100;
+  while (u.xp >= u.level * 150) {
+    u.xp -= u.level * 150;
     u.level++;
   }
 
@@ -77,12 +77,14 @@ function addXP(x) {
 function renderMissions() {
   missions.innerHTML = "<h3>משימות</h3>";
 
+  let lvl = me().level;
+
   for (let i = 0; i < 3; i++) {
-    let reward = Math.floor(Math.random() * 50) + 20;
+    let reward = Math.floor(Math.random() * 50) + lvl * 10;
 
     missions.innerHTML += `
-      משימה ${i+1}
-      <button onclick="addXP(${reward})">בצע (+${reward})</button><br>
+    משימה רמה ${lvl}
+    <button onclick="addXP(${reward})">בצע (+${reward})</button><br>
     `;
   }
 }
@@ -94,17 +96,20 @@ function renderBank() {
   bank.innerHTML = `
     <h3>בנק</h3>
     יתרה: ${Math.floor(u.nux)}<br>
+    חובות: ${u.loans.length}<br>
     <button onclick="loan()">הלוואה</button>
-    <button onclick="invest()">השקעה</button>
   `;
 }
 
 function loan() {
   let u = me();
-  let amount = 200 * db.economy.inflation;
+
+  let amount = 300 * db.economy.inflation;
+  let interest = db.economy.interest;
 
   u.loans.push({
     amount,
+    repay: amount * interest,
     due: Date.now() + 60000
   });
 
@@ -112,79 +117,103 @@ function loan() {
     u.nux += amount;
     save();
     render();
-  }, 3000);
+  }, 2000);
 }
 
-function invest() {
+// ===== MARKET =====
+function renderMarket() {
+  let m = db.economy.market;
   let u = me();
 
-  let risk = Math.random();
+  world.innerHTML = "<h3>שוק</h3>";
 
-  setTimeout(() => {
-    if (risk > 0.7) u.nux += 500;
-    else if (risk > 0.4) u.nux += 150;
-    else u.nux -= 200;
-
-    save();
-    render();
-  }, 5000);
+  for (let key in m) {
+    world.innerHTML += `
+    ${key}: ${m[key].toFixed(1)}
+    <button onclick="buy('${key}')">קנה</button>
+    <button onclick="sell('${key}')">מכור</button><br>
+    `;
+  }
 }
 
-// ===== WORLD ENGINE =====
-function worldEngine() {
+function buy(asset) {
+  let price = db.economy.market[asset];
+  let u = me();
+
+  if (u.nux >= price) {
+    u.nux -= price;
+    u.portfolio[asset] = (u.portfolio[asset] || 0) + 1;
+  }
+
+  save();
+  render();
+}
+
+function sell(asset) {
+  let u = me();
+
+  if (u.portfolio[asset] > 0) {
+    u.portfolio[asset]--;
+    u.nux += db.economy.market[asset];
+  }
+
+  save();
+  render();
+}
+
+// ===== WORLD LOOP =====
+function worldLoop() {
   setInterval(() => {
 
-    // אינפלציה משתנה
-    db.economy.inflation += (Math.random() - 0.5) * 0.05;
+    // תנודות שוק
+    for (let key in db.economy.market) {
+      db.economy.market[key] += (Math.random() - 0.5) * 10;
+      if (db.economy.market[key] < 10) db.economy.market[key] = 10;
+    }
 
-    // ריבית משתנה
-    db.economy.interest += (Math.random() - 0.5) * 0.02;
+    // אינפלציה
+    db.economy.inflation += (Math.random() - 0.5) * 0.1;
 
-    // אירוע עולמי
-    if (Math.random() > 0.8) {
-      emergency.innerText = "⚠️ משבר כלכלי!";
-      emergency.style.display = "block";
+    // בדיקת חובות
+    let u = me();
+    u.loans = u.loans.filter(l => {
+      if (Date.now() > l.due) {
+        u.nux -= l.repay;
+        return false;
+      }
+      return true;
+    });
 
-      setTimeout(() => emergency.style.display = "none", 3000);
-
-      db.economy.inflation += 0.2;
+    // קריסה
+    if (u.nux < -500) {
+      alert("פשיטת רגל!");
+      u.nux = 100;
+      u.level = 1;
     }
 
     save();
     render();
 
-  }, 10000);
+  }, 8000);
 }
 
-// ===== WORLD =====
-function renderWorld() {
-  world.innerHTML = `
-    <h3>עולם</h3>
-    אינפלציה: ${db.economy.inflation.toFixed(2)}<br>
-    ריבית: ${db.economy.interest.toFixed(2)}
-  `;
-}
-
-// ===== UI =====
-function show(id) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
-  document.getElementById(id).classList.remove("hidden");
-}
-
-// ===== CHEAT SYSTEM 😈 =====
+// ===== CHEATS 😈 =====
 document.addEventListener("keydown", e => {
   if (e.key === "`") {
     let cmd = prompt("CMD:");
 
-    if (cmd === "admin 9999") {
-      adminMode = true;
-      alert("ADMIN MODE");
-    }
+    if (cmd === "admin 9999") adminMode = true;
 
     if (adminMode) {
-      if (cmd === "money") me().nux += 10000;
-      if (cmd === "inflate") db.economy.inflation += 1;
-      if (cmd === "crash") me().nux = 0;
+      if (cmd === "money") me().nux += 50000;
+      if (cmd === "boost") me().level += 5;
+      if (cmd === "inflate") db.economy.inflation += 2;
+      if (cmd === "market up") {
+        for (let k in db.economy.market) db.economy.market[k] *= 1.5;
+      }
+      if (cmd === "market crash") {
+        for (let k in db.economy.market) db.economy.market[k] *= 0.5;
+      }
     }
 
     save();
